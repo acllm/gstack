@@ -89,6 +89,11 @@ SKILL.md files are **generated** from `.tmpl` templates. To update docs:
 2. Run `bun run gen:skill-docs` (or `bun run build` which does it automatically)
 3. Commit both the `.tmpl` and generated `.md` files
 
+To regenerate for a specific host:
+- `bun run gen:skill-docs` — Claude output (`.claude/skills/` format)
+- `bun run gen:skill-docs --host codex` — Codex/Gemini/Cursor output (`.agents/skills/`)
+- `bun run gen:skill-docs --host trae` — Trae output (`.trae/skills/`)
+
 To add a new browse command: add it to `browse/src/commands.ts` and rebuild.
 To add a snapshot flag: add it to `SNAPSHOT_FLAGS` in `browse/src/snapshot.ts` and rebuild.
 

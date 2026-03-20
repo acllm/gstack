@@ -19,15 +19,16 @@ const DRY_RUN = process.argv.includes('--dry-run');
 
 // ─── Template Context ───────────────────────────────────────
 
-type Host = 'claude' | 'codex';
+type Host = 'claude' | 'codex' | 'trae';
 
 const HOST_ARG = process.argv.find(a => a.startsWith('--host'));
 const HOST: Host = (() => {
   if (!HOST_ARG) return 'claude';
   const val = HOST_ARG.includes('=') ? HOST_ARG.split('=')[1] : process.argv[process.argv.indexOf(HOST_ARG) + 1];
   if (val === 'codex' || val === 'agents') return 'codex';
+  if (val === 'trae') return 'trae';
   if (val === 'claude') return 'claude';
-  throw new Error(`Unknown host: ${val}. Use claude, codex, or agents.`);
+  throw new Error(`Unknown host: ${val}. Use claude, codex, agents, or trae.`);
 })();
 
 interface HostPaths {
@@ -49,6 +50,12 @@ const HOST_PATHS: Record<Host, HostPaths> = {
     localSkillRoot: '.agents/skills/gstack',
     binDir: '~/.codex/skills/gstack/bin',
     browseDir: '~/.codex/skills/gstack/browse/dist',
+  },
+  trae: {
+    skillRoot: '~/.trae/skills/gstack',
+    localSkillRoot: '.trae/skills/gstack',
+    binDir: '~/.trae/skills/gstack/bin',
+    browseDir: '~/.trae/skills/gstack/browse/dist',
   },
 };
 
@@ -1545,6 +1552,14 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
     outputPath = path.join(outputDir, 'SKILL.md');
   }
 
+  // For trae host, route output to .trae/skills/{codexSkillName}/SKILL.md
+  if (host === 'trae') {
+    const traeName = codexSkillName(skillDir === '.' ? '' : skillDir);
+    const outputDir = path.join(ROOT, '.trae', 'skills', traeName);
+    fs.mkdirSync(outputDir, { recursive: true });
+    outputPath = path.join(outputDir, 'SKILL.md');
+  }
+
   // Extract skill name from frontmatter for TemplateContext
   const nameMatch = tmplContent.match(/^name:\s*(.+)$/m);
   const skillName = nameMatch ? nameMatch[1].trim() : path.basename(path.dirname(tmplPath));
@@ -1570,8 +1585,8 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
     throw new Error(`Unresolved placeholders in ${relTmplPath}: ${remaining.join(', ')}`);
   }
 
-  // For codex host: transform frontmatter and replace Claude-specific paths
-  if (host === 'codex') {
+  // For codex or trae host: transform frontmatter and replace Claude-specific paths
+  if (host === 'codex' || host === 'trae') {
     // Extract hook safety prose BEFORE transforming frontmatter (which strips hooks)
     const safetyProse = extractHookSafetyProse(tmplContent);
 
@@ -1587,8 +1602,13 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
     // Replace remaining hardcoded Claude paths with host-appropriate paths
     content = content.replace(/~\/\.claude\/skills\/gstack/g, ctx.paths.skillRoot);
     content = content.replace(/\.claude\/skills\/gstack/g, ctx.paths.localSkillRoot);
-    content = content.replace(/\.claude\/skills\/review/g, '.agents/skills/gstack/review');
-    content = content.replace(/\.claude\/skills/g, '.agents/skills');
+    if (host === 'trae') {
+      content = content.replace(/\.claude\/skills\/review/g, '.trae/skills/gstack/review');
+      content = content.replace(/\.claude\/skills/g, '.trae/skills');
+    } else {
+      content = content.replace(/\.claude\/skills\/review/g, '.agents/skills/gstack/review');
+      content = content.replace(/\.claude\/skills/g, '.agents/skills');
+    }
   }
 
   // Prepend generated header (after frontmatter)
@@ -1622,8 +1642,8 @@ function findTemplates(): string[] {
 let hasChanges = false;
 
 for (const tmplPath of findTemplates()) {
-  // Skip /codex skill for codex host (self-referential — it's a Claude wrapper around codex exec)
-  if (HOST === 'codex') {
+  // Skip /codex skill for codex/trae host (self-referential — it's a Claude wrapper around codex exec)
+  if (HOST === 'codex' || HOST === 'trae') {
     const dir = path.basename(path.dirname(tmplPath));
     if (dir === 'codex') continue;
   }

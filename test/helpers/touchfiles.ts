@@ -88,6 +88,10 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'gemini-discover-skill':  ['.agents/skills/**', 'test/helpers/gemini-session-runner.ts'],
   'gemini-review-findings': ['review/**', '.agents/skills/gstack-review/**', 'test/helpers/gemini-session-runner.ts'],
 
+  // Trae E2E (tests skills via Trae Agent CLI)
+  'trae-discover-skill':    ['.trae/skills/**', 'test/helpers/trae-session-runner.ts'],
+  'trae-review-findings':   ['review/**', '.trae/skills/gstack-review/**', 'test/helpers/trae-session-runner.ts'],
+
   // QA bootstrap
   'qa-bootstrap': ['qa/**', 'browse/src/**', 'ship/**'],
 
@@ -165,6 +169,7 @@ export const GLOBAL_TOUCHFILES = [
   'test/helpers/session-runner.ts',
   'test/helpers/codex-session-runner.ts',
   'test/helpers/gemini-session-runner.ts',
+  'test/helpers/trae-session-runner.ts',
   'test/helpers/eval-store.ts',
   'test/helpers/llm-judge.ts',
   'scripts/gen-skill-docs.ts',

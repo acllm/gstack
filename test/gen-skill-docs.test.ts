@@ -745,6 +745,95 @@ describe('Codex generation (--host codex)', () => {
       expect(content).not.toContain('.agents/skills');
     }
   });
+
+  test('Claude output unchanged: all Claude skills have zero Trae paths', () => {
+    for (const skill of ALL_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+      expect(content).not.toContain('~/.trae/');
+      expect(content).not.toContain('.trae/skills');
+    }
+  });
+});
+
+// ─── Trae Generation Tests ───────────────────────────────────
+
+describe('Trae generation (--host trae)', () => {
+  const TRAE_DIR = path.join(ROOT, '.trae', 'skills');
+
+  // Dynamic discovery of expected Trae skills: all templates except /codex
+  const TRAE_SKILLS = (() => {
+    const skills: Array<{ dir: string; traeName: string }> = [];
+    if (fs.existsSync(path.join(ROOT, 'SKILL.md.tmpl'))) {
+      skills.push({ dir: '.', traeName: 'gstack' });
+    }
+    for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+      if (entry.name === 'codex') continue; // /codex is excluded from Trae output
+      if (!fs.existsSync(path.join(ROOT, entry.name, 'SKILL.md.tmpl'))) continue;
+      const traeName = entry.name.startsWith('gstack-') ? entry.name : `gstack-${entry.name}`;
+      skills.push({ dir: entry.name, traeName });
+    }
+    return skills;
+  })();
+
+  test('--host trae generates correct output paths', () => {
+    for (const skill of TRAE_SKILLS) {
+      const skillMd = path.join(TRAE_DIR, skill.traeName, 'SKILL.md');
+      expect(fs.existsSync(skillMd)).toBe(true);
+    }
+  });
+
+  test('/codex skill excluded from Trae output', () => {
+    expect(fs.existsSync(path.join(TRAE_DIR, 'gstack-codex', 'SKILL.md'))).toBe(false);
+    expect(fs.existsSync(path.join(TRAE_DIR, 'gstack-codex'))).toBe(false);
+  });
+
+  test('--host trae --dry-run freshness', () => {
+    const result = Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--host', 'trae', '--dry-run'], {
+      cwd: ROOT,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(result.exitCode).toBe(0);
+    const output = result.stdout.toString();
+    for (const skill of TRAE_SKILLS) {
+      expect(output).toContain(`FRESH: .trae/skills/${skill.traeName}/SKILL.md`);
+    }
+    expect(output).not.toContain('STALE');
+  });
+
+  test('Trae preamble uses trae paths', () => {
+    const content = fs.readFileSync(path.join(TRAE_DIR, 'gstack-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('~/.trae/skills/gstack');
+  });
+
+  test('Trae skills have minimal frontmatter (name + description only)', () => {
+    for (const skill of TRAE_SKILLS.slice(0, 5)) {
+      const content = fs.readFileSync(path.join(TRAE_DIR, skill.traeName, 'SKILL.md'), 'utf-8');
+      const fmEnd = content.indexOf('\n---', 4);
+      const frontmatter = content.slice(4, fmEnd);
+      expect(frontmatter).toContain('name:');
+      expect(frontmatter).toContain('description:');
+      expect(frontmatter).not.toContain('allowed-tools:');
+      expect(frontmatter).not.toContain('hooks:');
+      expect(frontmatter).not.toContain('version:');
+    }
+  });
+
+  test('hook skills have safety prose in Trae output', () => {
+    const HOOK_SKILLS = ['gstack-careful', 'gstack-freeze', 'gstack-guard'];
+    for (const skillName of HOOK_SKILLS) {
+      const content = fs.readFileSync(path.join(TRAE_DIR, skillName, 'SKILL.md'), 'utf-8');
+      expect(content).toContain('Safety Advisory');
+    }
+  });
+
+  test('Trae output uses .trae/skills paths (not .agents/skills)', () => {
+    const content = fs.readFileSync(path.join(TRAE_DIR, 'gstack-review', 'SKILL.md'), 'utf-8');
+    expect(content).not.toContain('.agents/skills');
+    expect(content).not.toContain('~/.codex/');
+    expect(content).not.toContain('~/.claude/');
+  });
 });
 
 // ─── Setup script validation ─────────────────────────────────
@@ -799,14 +888,40 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('ln -snf "gstack/$skill_name"');
   });
 
-  test('setup supports --host auto|claude|codex', () => {
+  test('setup supports --host auto|claude|codex|trae', () => {
     expect(setupContent).toContain('--host');
-    expect(setupContent).toContain('claude|codex|auto');
+    expect(setupContent).toContain('claude|codex|trae|auto');
   });
 
   test('auto mode detects claude and codex binaries', () => {
     expect(setupContent).toContain('command -v claude');
     expect(setupContent).toContain('command -v codex');
+  });
+
+  test('auto mode detects trae binary', () => {
+    expect(setupContent).toContain('command -v trae');
+  });
+
+  test('setup has separate link function for Trae', () => {
+    expect(setupContent).toContain('link_trae_skill_dirs');
+  });
+
+  test('Trae install uses link_trae_skill_dirs', () => {
+    const traeSection = setupContent.slice(
+      setupContent.indexOf('# 6. Install for Trae'),
+      setupContent.indexOf('# 7. Create')
+    );
+    expect(traeSection).toContain('link_trae_skill_dirs');
+    expect(traeSection).not.toContain('link_claude_skill_dirs');
+    expect(traeSection).not.toContain('link_codex_skill_dirs');
+  });
+
+  test('link_trae_skill_dirs reads from .trae/skills/', () => {
+    const fnStart = setupContent.indexOf('link_trae_skill_dirs()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('.trae/skills');
+    expect(fnBody).toContain('gstack*');
   });
 
   test('create_agents_sidecar links runtime assets', () => {

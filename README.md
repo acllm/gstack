@@ -65,6 +65,34 @@ git clone https://github.com/garrytan/gstack.git ~/.codex/skills/gstack
 cd ~/.codex/skills/gstack && ./setup --host codex
 ```
 
+### Trae (ByteDance)
+
+Trae reads skills from `~/.trae/skills/` (global) or `.trae/skills/` (project-level). gstack generates a dedicated Trae-format skill set and installs it automatically.
+
+```bash
+git clone https://github.com/garrytan/gstack.git ~/.trae/skills/gstack
+cd ~/.trae/skills/gstack && ./setup --host trae
+```
+
+This generates `.trae/skills/gstack-{skill}/SKILL.md` files with Trae-appropriate paths and inline safety prose (Trae doesn't support Claude's hooks system). All 21 skills work in Trae.
+
+**Using gstack as a team in Trae (Claude Teammates equivalent)**
+
+Claude Code has "Teammates" — multiple parallel agents coordinating on the same codebase. In Trae, you can replicate this pattern using Trae's multi-panel agent sessions:
+
+1. **Open multiple Trae panels** — one per workstream (feature, tests, docs, review).
+2. **Give each panel a gstack role:**
+   - Panel 1: `/plan-eng-review` — architect the feature
+   - Panel 2: `/qa` — browser-test the current branch in parallel
+   - Panel 3: `/review` — review the diff as a second opinion
+   - Panel 4: `/document-release` — update docs while code ships
+3. **Coordinate via shared files** — panels write to `.context/` or `CLAUDE.md` so each agent sees what others decided.
+4. **Use `/codex` for cross-model review** — get an OpenAI second opinion inside any Trae panel, just like in Claude Code.
+
+This gives Trae users the same sprint parallelism as Claude Code's Teammates: multiple specialized agents running different gstack workflows on the same branch simultaneously.
+
+### Auto-detect all installed agents
+
 Or let setup auto-detect which agents you have installed:
 
 ```bash
@@ -72,7 +100,7 @@ git clone https://github.com/garrytan/gstack.git ~/gstack
 cd ~/gstack && ./setup --host auto
 ```
 
-This installs to `~/.claude/skills/gstack` and/or `~/.codex/skills/gstack` depending on what's available. All 21 skills work across all supported agents. Hook-based safety skills (careful, freeze, guard) use inline safety advisory prose on non-Claude hosts.
+This installs to `~/.claude/skills/gstack`, `~/.codex/skills/gstack`, and/or `~/.trae/skills/gstack` depending on what's available. All 21 skills work across all supported agents. Hook-based safety skills (careful, freeze, guard) use inline safety advisory prose on non-Claude hosts.
 
 ## See it work
 
